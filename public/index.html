@@ -1,73 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>BANK-API</title>
+  <meta charset="UTF-8">
+  <title>User Count Dashboard</title>
   <style>
-    body { font-family: sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
-    input, button { padding: 8px; margin: 5px 0; width: 100%; }
-    button { cursor: pointer; }
-    .result { margin-top: 20px; font-size: 1.2em; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    input, button {
+      margin: 5px 0;
+    }
+    .result {
+      margin-top: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
+  <h1>User Count API Interface</h1>
 
-  <h2>BANK-API</h2>
+  <section>
+    <h2>Get User Count</h2>
+    <input type="text" id="getUserId" placeholder="Enter User ID (e.g., u1)" />
+    <button onclick="getUserCount()">Get Count</button>
+    <div class="result" id="getResult"></div>
+  </section>
 
-  <label for="userId">User ID:</label>
-  <input type="text" id="userId" placeholder="e.g., u1" />
+  <hr>
 
-  <button onclick="getCount()">Get Count</button>
-
-  <label for="amount">Change Amount:</label>
-  <input type="number" id="amount" value="1" />
-
-  <button onclick="changeCount(true)">Increase</button>
-  <button onclick="changeCount(false)">Decrease</button>
-
-  <div class="result" id="result"></div>
+  <section>
+    <h2>Transfer Count</h2>
+    <input type="text" id="senderId" placeholder="Sender ID (e.g., u1)" />
+    <input type="text" id="receiverId" placeholder="Receiver ID (e.g., u2)" />
+    <input type="number" id="amount" placeholder="Amount to transfer" />
+    <button onclick="transferCount()">Transfer</button>
+    <div class="result" id="transferResult"></div>
+  </section>
 
   <script>
-
-    async function getCount() {
-      const userId = document.getElementById("userId").value;
-      if (!userId) return showResult("Please enter a user ID");
+    async function getUserCount() {
+      const userId = document.getElementById('getUserId').value;
+      const result = document.getElementById('getResult');
+      result.textContent = "Loading...";
 
       try {
-        const res = await fetch(`/api/count?user=${userId}`);
-        const data = await res.json();
-        if (res.ok) {
-          showResult(`User ${data.user} has count: ${data.count}`);
+        const response = await fetch(`/api/count?user=${encodeURIComponent(userId)}`);
+        const data = await response.json();
+        if (response.ok) {
+          result.textContent = `User ${data.user} has count: ${data.count}`;
         } else {
-          showResult(`Error: ${data.error}`);
+          result.textContent = `Error: ${data.error}`;
         }
-      } catch (e) {
-        showResult("Error fetching count");
+      } catch (error) {
+        result.textContent = `Error: ${error.message}`;
       }
     }
 
-    async function changeCount(isIncrease) {
-      const userId = document.getElementById("userId").value;
-      const amount = parseInt(document.getElementById("amount").value, 10);
-      if (!userId || isNaN(amount)) return showResult("Enter valid user ID and amount");
-
-      const finalAmount = isIncrease ? amount : -amount;
+    async function transferCount() {
+      const sendId = document.getElementById('senderId').value;
+      const revId = document.getElementById('receiverId').value;
+      const amount = document.getElementById('amount').value;
+      const result = document.getElementById('transferResult');
+      result.textContent = "Processing...";
 
       try {
-        const res = await fetch(`/api/change?user=${userId}&amount=${finalAmount}`);
-        const data = await res.json();
-        if (res.ok) {
-          showResult(`User ${data.user} new count: ${data.count}`);
+        const url = `/api/change?send=${encodeURIComponent(sendId)}&rev=${encodeURIComponent(revId)}&amount=${encodeURIComponent(amount)}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (response.ok) {
+          result.textContent = `Transferred ${amount} from ${data.senderId} to ${data.receiverId}. New balances: ${data.senderId} = ${data.senderNewCount}, ${data.receiverId} = ${data.receiverNewCount}`;
         } else {
-          showResult(`Error: ${data.error}`);
+          result.textContent = `Error: ${data.error}`;
         }
-      } catch (e) {
-        showResult("Error updating count");
+      } catch (error) {
+        result.textContent = `Error: ${error.message}`;
       }
-    }
-
-    function showResult(msg) {
-      document.getElementById("result").textContent = msg;
     }
   </script>
 </body>
