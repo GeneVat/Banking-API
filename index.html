@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BANK-API</title>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+    input, button { padding: 8px; margin: 5px 0; width: 100%; }
+    button { cursor: pointer; }
+    .result { margin-top: 20px; font-size: 1.2em; }
+  </style>
+</head>
+<body>
+
+  <h2>BANK-API</h2>
+
+  <label for="userId">User ID:</label>
+  <input type="text" id="userId" placeholder="e.g., u1" />
+
+  <button onclick="getCount()">Get Count</button>
+
+  <label for="amount">Change Amount:</label>
+  <input type="number" id="amount" value="1" />
+
+  <button onclick="changeCount(true)">Increase</button>
+  <button onclick="changeCount(false)">Decrease</button>
+
+  <div class="result" id="result"></div>
+
+  <script>
+    async function getCount() {
+      const userId = document.getElementById("userId").value;
+      if (!userId) return showResult("Please enter a user ID");
+
+      try {
+        const res = await fetch(`/api/count?user=${userId}`);
+        const data = await res.json();
+        if (res.ok) {
+          showResult(`User ${data.user} has count: ${data.count}`);
+        } else {
+          showResult(`Error: ${data.error}`);
+        }
+      } catch (e) {
+        showResult("Error fetching count");
+      }
+    }
+
+    async function changeCount(isIncrease) {
+      const userId = document.getElementById("userId").value;
+      const amount = parseInt(document.getElementById("amount").value, 10);
+      if (!userId || isNaN(amount)) return showResult("Enter valid user ID and amount");
+
+      const finalAmount = isIncrease ? amount : -amount;
+
+      try {
+        const res = await fetch(`/api/change?user=${userId}&amount=${finalAmount}`);
+        const data = await res.json();
+        if (res.ok) {
+          showResult(`User ${data.user} new count: ${data.count}`);
+        } else {
+          showResult(`Error: ${data.error}`);
+        }
+      } catch (e) {
+        showResult("Error updating count");
+      }
+    }
+
+    function showResult(msg) {
+      document.getElementById("result").textContent = msg;
+    }
+  </script>
+</body>
+</html>
