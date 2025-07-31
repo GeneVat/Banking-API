@@ -2,6 +2,7 @@ const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const app = express();
 const port = 3000;
+app.use(express.static("public"));
 
 // Connect to SQLite database (will create if not exists)
 const db = new sqlite3.Database("./userCounts.db");
@@ -16,10 +17,13 @@ db.serialize(() => {
   `);
 
   // Insert sample data if not present
-  const sampleUsers = ['u1', 'u2', 'u3'];
+  const sampleUsers = ["u1", "u2", "u3"];
   const sampleCounts = [10, 25, 42];
   sampleUsers.forEach((id, i) => {
-    db.run(`INSERT OR IGNORE INTO users (id, count) VALUES (?, ?)`, [id, sampleCounts[i]]);
+    db.run(`INSERT OR IGNORE INTO users (id, count) VALUES (?, ?)`, [
+      id,
+      sampleCounts[i],
+    ]);
   });
 });
 
@@ -41,7 +45,9 @@ app.get("/api/change", (req, res) => {
   const amount = parseInt(req.query.amount, 10);
 
   if (!userId || isNaN(amount)) {
-    return res.status(400).json({ error: "User ID and valid amount are required" });
+    return res
+      .status(400)
+      .json({ error: "User ID and valid amount are required" });
   }
 
   db.get(`SELECT count FROM users WHERE id = ?`, [userId], (err, row) => {
@@ -49,10 +55,15 @@ app.get("/api/change", (req, res) => {
     if (!row) return res.status(404).json({ error: "User ID not found" });
 
     const newCount = row.count + amount;
-    db.run(`UPDATE users SET count = ? WHERE id = ?`, [newCount, userId], function (err) {
-      if (err) return res.status(500).json({ error: "Failed to update count" });
-      res.json({ user: userId, count: newCount });
-    });
+    db.run(
+      `UPDATE users SET count = ? WHERE id = ?`,
+      [newCount, userId],
+      function (err) {
+        if (err)
+          return res.status(500).json({ error: "Failed to update count" });
+        res.json({ user: userId, count: newCount });
+      }
+    );
   });
 });
 
