@@ -6,6 +6,8 @@ const port = 3000;
 
 app.use(express.static("public"));
 
+
+
 // Initialize DB
 const db = new Database("userTransactions.db");
 
@@ -89,6 +91,11 @@ app.get("/api/del", (req, res) => {
   if (!userId) {
     return res.status(400).json({ error: "User ID is required." });
   }
+
+  const user = db.prepare(`SELECT count FROM users WHERE id = ?`).get(userId);
+ if (user.count != 0){
+      return res.status(400).json({ error: "User must have 0 balance to delete" });
+ }
 
   try {
     const selectUser = db.prepare(`SELECT id FROM users WHERE id = ?`);
