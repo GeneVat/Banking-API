@@ -26,6 +26,7 @@
 <body>
 
   <h1>🔁 User Transaction Tester</h1>
+  <input type="text" id="apiKey" placeholder="API KEY" />
 
   <div class="section">
     <h2>Add User</h2>
@@ -33,7 +34,8 @@
     <input type="text" id="newUserKey" placeholder="User Key (e.g., 111)" />
     <button onclick="newUser()">Add</button>
     <p id="newUserResult"></p>
-  </div> <div class="section">
+  </div>
+  <div class="section">
     <h2>Delete User</h2>
     <input type="text" id="delUserID" placeholder="User ID (e.g., u1)" />
     <button onclick="delUser()">Add</button>
@@ -67,7 +69,8 @@
   <script>
     async function checkCount() {
       const user = document.getElementById("checkUserId").value;
-      const res = await fetch(`/api/count?user=${user}`);
+      const apiKey = document.getElementById("apiKey").value;
+      const res = await fetch(`/api/count?user=${user}&apikey=${apiKey}`);
       const data = await res.json();
       document.getElementById("countResult").innerText = JSON.stringify(data, null, 2);
     }
@@ -85,22 +88,28 @@
     }
 
     async function getTransactions() {
-      const res = await fetch("/api/transactions");
+      const apiKey = document.getElementById("apiKey").value;
+
+      const res = await fetch(`/api/transactions?apikey=${apiKey}`);
       const data = await res.json();
       document.getElementById("transactionsList").innerText = JSON.stringify(data, null, 2);
     }
     async function newUser() {
-            const newUserID = document.getElementById("newUserID").value;
-            const newUserKey = document.getElementById("newUserKey").value;
-      const res = await fetch(`/api/add?user=${newUserID}&key=${newUserKey}`);
-      
+      const apiKey = document.getElementById("apiKey").value;
+
+      const newUserID = document.getElementById("newUserID").value;
+      const newUserKey = document.getElementById("newUserKey").value;
+      const res = await fetch(`/api/add?user=${newUserID}&key=${newUserKey}&apikey=${apiKey}`);
+
       const data = await res.json();
       document.getElementById("newUserResult").innerText = JSON.stringify(data, null, 2);
     }
     async function delUser() {
-            const newUserID = document.getElementById("delUserID").value;
-      const res = await fetch(`/api/del?user=${newUserID}`);
-      
+      const apiKey = document.getElementById("apiKey").value;
+
+      const newUserID = document.getElementById("delUserID").value;
+      const res = await fetch(`/api/del?user=${newUserID}&apikey=${apiKey}`);
+
       const data = await res.json();
       document.getElementById("delUserResult").innerText = JSON.stringify(data, null, 2);
     }
