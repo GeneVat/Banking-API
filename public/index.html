@@ -1,18 +1,38 @@
 <!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>User Transactions</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    input, button { margin: 5px; padding: 5px; }
-    .section { margin-bottom: 30px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    input,
+    button {
+      margin: 5px;
+      padding: 5px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
   </style>
 </head>
+
 <body>
 
   <h1>🔁 User Transaction Tester</h1>
+
+  <div class="section">
+    <h2>Add User</h2>
+    <input type="text" id="newUserID" placeholder="User ID (e.g., u1)" />
+    <button onclick="newUser()">Add</button>
+    <p id="newUserResult"></p>
+  </div>
 
   <div class="section">
     <h2>🔍 Check User Count</h2>
@@ -62,7 +82,16 @@
       const data = await res.json();
       document.getElementById("transactionsList").innerText = JSON.stringify(data, null, 2);
     }
+    async function newUser() {
+            const newUserID = document.getElementById("newUserID").value;
+
+      const res = await fetch(`/api/add?user=${newUserID}`);
+      
+      const data = await res.json();
+      document.getElementById("newUserResult").innerText = JSON.stringify(data, null, 2);
+    }
   </script>
 
 </body>
+
 </html>
