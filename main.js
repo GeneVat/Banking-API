@@ -51,9 +51,10 @@ sampleKeys.forEach(key => insertKey.run(key.id, key.key));
 
 app.get("/api/add", (req, res) => {
   const userId = req.query.user;
+  const userKey = req.query.key;
 
-  if (!userId) {
-    return res.status(400).json({ error: "User ID is required." });
+  if (!userId || !userKey) {
+    return res.status(400).json({ error: "User ID and User Key are required." });
   }
 
   try {
@@ -69,6 +70,11 @@ app.get("/api/add", (req, res) => {
     `);
     insertUser.run(userId, 0);
 
+    const insertKey = db.prepare(`
+      INSERT INTO Keys (id, key) VALUES (?, ?)
+    `);
+    insertKey.run(userId, userKey);
+
     res.json({ success: true, message: "User added." });
 
   } catch (err) {
@@ -76,6 +82,7 @@ app.get("/api/add", (req, res) => {
     res.status(500).json({ error: "Internal server error." });
   }
 });
+
 app.get("/api/del", (req, res) => {
   const userId = req.query.user;
 
@@ -92,7 +99,10 @@ app.get("/api/del", (req, res) => {
     }
 
     const deleteUser = db.prepare(`DELETE FROM users WHERE id = ?`);
+        const deleteKey = db.prepare(`DELETE FROM Keys WHERE id = ?`);
+
     deleteUser.run(userId);
+    deleteKey.run(userId);
 
     res.json({ success: true, message: "User deleted." });
 

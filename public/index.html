@@ -30,9 +30,16 @@
   <div class="section">
     <h2>Add User</h2>
     <input type="text" id="newUserID" placeholder="User ID (e.g., u1)" />
+    <input type="text" id="newUserKey" placeholder="User Key (e.g., 111)" />
     <button onclick="newUser()">Add</button>
     <p id="newUserResult"></p>
+  </div> <div class="section">
+    <h2>Delete User</h2>
+    <input type="text" id="delUserID" placeholder="User ID (e.g., u1)" />
+    <button onclick="delUser()">Add</button>
+    <p id="delUserResult"></p>
   </div>
+
 
   <div class="section">
     <h2>🔍 Check User Count</h2>
@@ -84,11 +91,18 @@
     }
     async function newUser() {
             const newUserID = document.getElementById("newUserID").value;
-
-      const res = await fetch(`/api/add?user=${newUserID}`);
+            const newUserKey = document.getElementById("newUserKey").value;
+      const res = await fetch(`/api/add?user=${newUserID}&key=${newUserKey}`);
       
       const data = await res.json();
       document.getElementById("newUserResult").innerText = JSON.stringify(data, null, 2);
+    }
+    async function delUser() {
+            const newUserID = document.getElementById("delUserID").value;
+      const res = await fetch(`/api/del?user=${newUserID}`);
+      
+      const data = await res.json();
+      document.getElementById("delUserResult").innerText = JSON.stringify(data, null, 2);
     }
   </script>
 
