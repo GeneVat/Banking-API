@@ -138,11 +138,13 @@ app.get("/api/del", (req, res) => {
 app.get("/api/count", (req, res) => {
   const userId = req.query.user;
   const apiKey = req.query.apikey;
-
-  if (Key !== apiKey) {
+  const userkey = req.query.userkey;
+  const usersKey = db.prepare(`SELECT key FROM keys WHERE id = ?`).get(userId);
+  if (Key !== apiKey && parseInt(userkey) !== parseInt(usersKey.key, 10)) {
     // API KEY CHECK
     return res.status(400).json({ error: "Requires the valid API Key" }); // API KEY CHECK
   } // API KEY CHECK
+
   if (!userId) return res.status(400).json({ error: "User ID is required." });
 
   const user = db.prepare(`SELECT count FROM users WHERE id = ?`).get(userId);
