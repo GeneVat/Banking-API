@@ -70,7 +70,7 @@
     async function checkCount() {
       const user = document.getElementById("checkUserId").value;
       const apiKey = document.getElementById("apiKey").value;
-      const res = await fetch(`/api/count?user=${user}&apikey=${apiKey}`);
+      const res = await fetch(`/api/count?user=${user}&apiKey=${apiKey}`);
       const data = await res.json();
       document.getElementById("countResult").innerText = JSON.stringify(data, null, 2);
     }
@@ -90,7 +90,7 @@
     async function getTransactions() {
       const apiKey = document.getElementById("apiKey").value;
 
-      const res = await fetch(`/api/transactions?apikey=${apiKey}`);
+      const res = await fetch(`/api/transactions?apiKey=${apiKey}`);
       const data = await res.json();
       document.getElementById("transactionsList").innerText = JSON.stringify(data, null, 2);
     }
@@ -99,7 +99,7 @@
 
       const newUserID = document.getElementById("newUserID").value;
       const newUserKey = document.getElementById("newUserKey").value;
-      const res = await fetch(`/api/add?user=${newUserID}&key=${newUserKey}&apikey=${apiKey}`);
+      const res = await fetch(`/api/add?user=${newUserID}&key=${newUserKey}&apiKey=${apiKey}`);
 
       const data = await res.json();
       document.getElementById("newUserResult").innerText = JSON.stringify(data, null, 2);
@@ -108,7 +108,7 @@
       const apiKey = document.getElementById("apiKey").value;
 
       const newUserID = document.getElementById("delUserID").value;
-      const res = await fetch(`/api/del?user=${newUserID}&apikey=${apiKey}`);
+      const res = await fetch(`/api/del?user=${newUserID}&apiKey=${apiKey}`);
 
       const data = await res.json();
       document.getElementById("delUserResult").innerText = JSON.stringify(data, null, 2);

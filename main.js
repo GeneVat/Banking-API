@@ -48,11 +48,14 @@ const starterKeys = [
 const insertUser = db.prepare(
   `INSERT OR IGNORE INTO users (id, count) VALUES (?, ?)`
 );
-starterUsers.forEach((user) => insertUser.run(user.id, user.count));
 
+const deleteUser = db.prepare(`DELETE FROM users WHERE id = ?`);
+const deleteKey = db.prepare(`DELETE FROM Keys WHERE id = ?`);
 const insertKey = db.prepare(
   `INSERT OR IGNORE INTO keys (id, key) VALUES (?, ?)`
 );
+
+starterUsers.forEach((user) => insertUser.run(user.id, user.count));
 starterKeys.forEach((key) => insertKey.run(key.id, key.key));
 
 app.get("/api/add", (req, res) => {
@@ -78,14 +81,7 @@ app.get("/api/add", (req, res) => {
       return res.json({ success: true, message: "User already exists." });
     }
 
-    const insertUser = db.prepare(`
-      INSERT INTO users (id, count) VALUES (?, ?)
-    `);
     insertUser.run(userInputId, 0);
-
-    const insertKey = db.prepare(`
-      INSERT INTO Keys (id, key) VALUES (?, ?)
-    `);
     insertKey.run(userInputId, userInputKey);
 
     res.json({ success: true, message: "User added." });
@@ -98,6 +94,7 @@ app.get("/api/add", (req, res) => {
 app.get("/api/del", (req, res) => {
   const userInputId = req.query.user;
   const apiInputKey = req.query.apiKey;
+  console.log(apiInputKey);
 
   if (Key !== apiInputKey) {
     // API KEY
@@ -115,6 +112,7 @@ app.get("/api/del", (req, res) => {
     if (!existingUser) {
       return res.json({ success: true, message: "User does not exist." });
     }
+
     const user = db
       .prepare(`SELECT count FROM users WHERE id = ?`)
       .get(userInputId);
@@ -123,8 +121,6 @@ app.get("/api/del", (req, res) => {
         .status(400)
         .json({ error: "User must have 0 balance to delete" });
     }
-    const deleteUser = db.prepare(`DELETE FROM users WHERE id = ?`);
-    const deleteKey = db.prepare(`DELETE FROM Keys WHERE id = ?`);
 
     deleteUser.run(userInputId);
     deleteKey.run(userInputId);
@@ -138,11 +134,7 @@ app.get("/api/del", (req, res) => {
 
 // Get user count
 app.get("/api/count", (req, res) => {
-  const userInputId = req.query.user;  const usersKey = db
-    .prepare(`SELECT key FROM keys WHERE id = ?`)
-    .get(userInputId);
-
-
+  const userInputId = req.query.user;
   const apiInputKey = req.query.apiKey;
 
   if (Key !== apiInputKey) {
@@ -150,10 +142,8 @@ app.get("/api/count", (req, res) => {
     return res.status(400).json({ error: "Requires the valid API Key" }); // API KEY
   } // API KEY
 
-
   if (!userInputId)
     return res.status(400).json({ error: "User ID is required." });
-
   const user = db
     .prepare(`SELECT count FROM users WHERE id = ?`)
     .get(userInputId);
