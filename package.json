@@ -2,14 +2,13 @@
   "dependencies": {
     "better-sqlite3": "^12.2.0",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
     "sqlite3": "^5.1.7"
   },
   "name": "banking-api",
   "version": "1.0.0",
   "main": "main.js",
-  
-
-    "scripts": {
+  "scripts": {
     "start": "node main.js",
     "dev": "nodemon main.js"
   },
