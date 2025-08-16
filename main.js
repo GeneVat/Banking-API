@@ -135,7 +135,7 @@ app.delete("/api/users/:id", requireAdmin, (req, res) => {
 
 // CREATE ACCOUNT (ADMIN ONLY)
 app.post("/api/accounts", requireAdmin, (req, res) => {
-  const { id, owner_id, balance } = req.body;
+  const { id, owner_id } = req.body;
   if (!id || !owner_id) return res.status(400).json({ error: "ID and owner required" });
 
   const exists = db.prepare("SELECT * FROM accounts WHERE id=?").get(id);
@@ -147,7 +147,7 @@ app.post("/api/accounts", requireAdmin, (req, res) => {
   db.prepare("INSERT INTO accounts (id, owner_id, balance) VALUES (?,?,?)").run(
     id,
     owner_id,
-    balance || 0
+    0
   );
   res.json({ success: true });
 });
@@ -176,6 +176,10 @@ app.post("/api/transfer", requireLogin, (req, res) => {
 
   if (!sender) return res.status(404).json({ error: "Sender account not found" });
   if (!receiver) return res.status(404).json({ error: "Receiver account not found" });
+
+if (!Number.isInteger(amount) || amount <= 0) {
+  return res.status(400).json({ error: "Amount must be a positive integer" });
+}
 
   // Ensure sender belongs to the logged-in user
   if (sender.owner_id !== req.session.userId)
