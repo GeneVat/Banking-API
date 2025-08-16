@@ -1,215 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>User Dashboard</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 2rem;
-    max-width: 600px;
-  }
-  input, button {
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-    width: 100%;
-  }
-  #dashboard {
-    display: none;
-  }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin-top: 1rem;
-  }
-  th, td {
-    border: 1px solid #ddd;
-    padding: 0.5rem;
-  }
-  th {
-    background: #f4f4f4;
-  }
-  #error {
-    color: red;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>Bank System</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { margin: 5px; }
+    .hidden { display: none; }
+    .section { margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px; }
+  </style>
 </head>
 <body>
+  <h1>Bank System</h1>
 
-<h2>Login</h2>
-<div id="loginForm">
-  <input type="text" id="userId" placeholder="User ID" />
-  <input type="password" id="userKey" placeholder="User Key" />
-  <button id="loginBtn">Login</button>
-  <p id="error"></p>
-</div>
+  <div id="loginDiv">
+    <h2>Login</h2>
+    <input id="loginId" placeholder="User ID" />
+    <input id="loginPass" type="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+  </div>
 
-<div id="dashboard">
-  <h2>Welcome, <span id="userName"></span></h2>
-  <p>Balance: <span id="userBalance"></span></p>
-  
-  <h3>Make a Transfer</h3>
-  <input type="text" id="receiverId" placeholder="Receiver User ID" />
-  <input type="number" id="transferAmount" placeholder="Amount" min="1" />
-  <button id="transferBtn">Send</button>
-  <p id="transferError" style="color:red"></p>
-  <p id="transferSuccess" style="color:green"></p>
+  <div id="userDiv" class="hidden">
+    <h2>Welcome <span id="userName"></span></h2>
+    <button onclick="logout()">Logout</button>
 
-  <h3>Your Transactions</h3>
-  <table id="transactionsTable">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Sender</th>
-        <th>Receiver</th>
-        <th>Amount</th>
-        <th>Timestamp</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    <div class="section" id="accountsSection">
+      <h3>Accounts</h3>
+      <ul id="accountsList"></ul>
+    </div>
 
-  <button id="logoutBtn" style="margin-top:1rem;">Logout</button>
-</div>
-<script>
-  const loginForm = document.getElementById("loginForm");
-  const dashboard = document.getElementById("dashboard");
-  const userNameSpan = document.getElementById("userName");
-  const userBalanceSpan = document.getElementById("userBalance");
-  const errorP = document.getElementById("error");
-  const transferError = document.getElementById("transferError");
-  const transferSuccess = document.getElementById("transferSuccess");
-  const transactionsTableBody = document.querySelector("#transactionsTable tbody");
+    <div class="section" id="transactionsSection">
+      <h3>Transactions</h3>
+      <ul id="transactionsList"></ul>
+    </div>
 
-  // Helper to do login fetch with user & key
-  async function doLogin(user, key) {
-    errorP.textContent = "";
-    try {
-      const res = await fetch(`/api/login?user=${encodeURIComponent(user)}&key=${encodeURIComponent(key)}`);
+    <div class="section" id="transferSection">
+      <h3>Transfer Money</h3>
+      <input id="fromAccount" placeholder="From Account ID" />
+      <input id="toAccount" placeholder="To Account ID" />
+      <input id="transferAmount" type="number" placeholder="Amount" />
+      <button onclick="transferMoney()">Transfer</button>
+    </div>
+
+    <div class="section hidden" id="adminSection">
+      <h3>Admin Controls</h3>
+
+      <h4>Create User</h4>
+      <input id="newUserId" placeholder="User ID" />
+      <input id="newUserPass" placeholder="Password" />
+      <button onclick="createUser()">Create User</button>
+
+      <h4>Create Account</h4>
+      <input id="newAccId" placeholder="Account ID" />
+      <input id="newAccOwner" placeholder="Owner ID" />
+      <input id="newAccBalance" placeholder="Initial Balance" type="number" />
+      <button onclick="createAccount()">Create Account</button>
+
+      <h4>Delete User</h4>
+      <input id="delUserId" placeholder="User ID" />
+      <button onclick="deleteUser()">Delete User</button>
+
+      <h4>Delete Account</h4>
+      <input id="delAccId" placeholder="Account ID" />
+      <button onclick="deleteAccount()">Delete Account</button>
+    </div>
+  </div>
+
+  <script>
+    let isAdmin = false;
+
+    async function login() {
+      const id = document.getElementById("loginId").value;
+      const password = document.getElementById("loginPass").value;
+
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, password })
+      });
+
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Login failed.");
+
+      if (!data.success) return alert(data.error);
+
+      isAdmin = data.isAdmin;
+
+      document.getElementById("loginDiv").classList.add("hidden");
+      document.getElementById("userDiv").classList.remove("hidden");
+      document.getElementById("userName").textContent = id;
+
+      if (isAdmin) {
+        document.getElementById("adminSection").classList.remove("hidden");
       }
-      // Show dashboard
-      loginForm.style.display = "none";
-      dashboard.style.display = "block";
-      userNameSpan.textContent = user;
-      userBalanceSpan.textContent = data.user.count;
-      populateTransactions(data.transactions);
-      // Save credentials to localStorage for persistence
-      localStorage.setItem("userId", user);
-      localStorage.setItem("userKey", key);
-    } catch (err) {
-      errorP.textContent = err.message;
-      logoutCleanup();
-    }
-  }
 
-  // On page load, try auto-login if credentials saved
-  window.onload = () => {
-    const savedUser = localStorage.getItem("userId");
-    const savedKey = localStorage.getItem("userKey");
-    if (savedUser && savedKey) {
-      doLogin(savedUser, savedKey);
-    }
-  };
-
-  // Manual login button click
-  document.getElementById("loginBtn").onclick = () => {
-    const user = document.getElementById("userId").value.trim();
-    const key = document.getElementById("userKey").value.trim();
-    if (!user || !key) {
-      errorP.textContent = "Please enter user ID and key.";
-      return;
-    }
-    doLogin(user, key);
-  };
-
-  function populateTransactions(transactions) {
-    transactionsTableBody.innerHTML = "";
-    transactions.forEach((tx) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${tx.id}</td>
-        <td>${tx.sender_id}</td>
-        <td>${tx.receiver_id}</td>
-        <td>${tx.amount}</td>
-        <td>${new Date(tx.timestamp).toLocaleString()}</td>
-      `;
-      transactionsTableBody.appendChild(row);
-    });
-  }
-
-  document.getElementById("transferBtn").onclick = async () => {
-    transferError.textContent = "";
-    transferSuccess.textContent = "";
-    const receiver = document.getElementById("receiverId").value.trim();
-    const amount = parseInt(document.getElementById("transferAmount").value, 10);
-    const user = localStorage.getItem("userId");
-    const key = localStorage.getItem("userKey");
-
-    if (!receiver || isNaN(amount) || amount <= 0) {
-      transferError.textContent = "Please enter a valid receiver and amount.";
-      return;
-    }
-    if (!user || !key) {
-      transferError.textContent = "Not logged in.";
-      return;
+      loadAccounts();
+      loadTransactions();
     }
 
-    try {
-      // Pass sender user and key in the URL (key is required by your API)
-      const res = await fetch(
-        `/api/change?send=${encodeURIComponent(user)}&rev=${encodeURIComponent(receiver)}&key=${encodeURIComponent(key)}&amount=${amount}`
-      );
+    async function logout() {
+      await fetch("/api/logout");
+      location.reload();
+    }
+
+    async function loadAccounts() {
+      const res = await fetch("/api/accounts");
+      const accounts = await res.json();
+      const list = document.getElementById("accountsList");
+      list.innerHTML = accounts.map(a => `<li>Account: ${a.id} \n Owner: ${a.owner_id} \n Balance: $${a.balance}</li>`).join("");
+    }
+
+    async function loadTransactions() {
+      const res = await fetch("/api/transactions");
+      const txns = await res.json();
+      const list = document.getElementById("transactionsList");
+      list.innerHTML = txns.map(t => `<li>${t.sender_account} transfered ${t.receiver_account} the sum of $${t.amount} (${t.timestamp})</li>`).join("");
+    }
+
+    async function createUser() {
+      const id = document.getElementById("newUserId").value;
+      const pass = document.getElementById("newUserPass").value;
+
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, password: pass })
+      });
+
       const data = await res.json();
-      if (!res.ok) {
-        transferError.textContent = data.error || "Transfer failed.";
-        return;
-      }
-      transferSuccess.textContent = `Transfer successful! New balance: ${data.senderNewCount}`;
-      userBalanceSpan.textContent = data.senderNewCount;
-
-      // Refresh transactions - just re-login to refresh all data cleanly
-      await doLogin(user, key);
-
-      // Clear input
-      document.getElementById("receiverId").value = "";
-      document.getElementById("transferAmount").value = "";
-    } catch (e) {
-      transferError.textContent = "Network error.";
+      alert(data.success ? "User created" : data.error);
     }
-  };
 
-  // Clear localStorage and reset UI on logout or failed login
-  function logoutCleanup() {
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userKey");
-    dashboard.style.display = "none";
-    loginForm.style.display = "block";
-    errorP.textContent = "";
-    transferError.textContent = "";
-    transferSuccess.textContent = "";
-    transactionsTableBody.innerHTML = "";
-    document.getElementById("userId").value = "";
-    document.getElementById("userKey").value = "";
-  }
+    async function deleteUser() {
+      const id = document.getElementById("delUserId").value;
 
-  document.getElementById("logoutBtn").onclick = async () => {
-    try {
-      const res = await fetch("/api/logout");
-      if (res.ok) {
-        logoutCleanup();
+      const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      alert(data.success ? "User deleted" : data.error);
+    }
+
+    async function createAccount() {
+      const id = document.getElementById("newAccId").value;
+      const owner_id = document.getElementById("newAccOwner").value;
+      const balance = parseInt(document.getElementById("newAccBalance").value) || 0;
+
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, owner_id, balance })
+      });
+
+      const data = await res.json();
+      alert(data.success ? "Account created" : data.error);
+      loadAccounts();
+    }
+
+    async function deleteAccount() {
+      const id = document.getElementById("delAccId").value;
+
+      const res = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      alert(data.success ? "Account deleted" : data.error);
+      loadAccounts();
+    }
+
+    // TRANSFER MONEY
+    async function transferMoney() {
+      const from = document.getElementById("fromAccount").value;
+      const to = document.getElementById("toAccount").value;
+      const amount = parseFloat(document.getElementById("transferAmount").value);
+
+      if (!from || !to || !amount || amount <= 0) {
+        return alert("Please enter valid transfer details");
+      }
+
+      const res = await fetch("/api/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to, amount })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(`Transfer successful! Transaction ID: ${data.transactionId}`);
+        loadAccounts();
+        loadTransactions();
       } else {
-        const data = await res.json();
-        alert(data.error || "Logout failed.");
+        alert(data.error || "Transfer failed");
       }
-    } catch {
-      alert("Network error.");
     }
-  };
-</script>
-
+  </script>
 </body>
 </html>

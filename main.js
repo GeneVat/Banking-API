@@ -2,9 +2,11 @@ const express = require("express");
 const session = require("express-session");
 const Database = require("better-sqlite3");
 const app = express();
-const port = 3000;
+const port = 4000;
 
 app.use(express.static("public"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Setup sessions
 app.use(
@@ -12,271 +14,212 @@ app.use(
     secret: "replace_this_with_a_strong_secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 60 * 60 * 1000 }, // 1 hour
+    cookie: { maxAge: 60 * 60 * 1000 },
   })
 );
 
-const Key = "Soup123";
-
 // Initialize DB
-const db = new Database("userTransactions.db");
+const db = new Database("bank.db");
 
-// Create tables (same as before)
+// Create tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
-    count INTEGER NOT NULL
+    password TEXT NOT NULL,
+    isAdmin INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT,
+    balance INTEGER DEFAULT 0,
+    FOREIGN KEY(owner_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender_id TEXT,
-    receiver_id TEXT,
+    sender_account TEXT,
+    receiver_account TEXT,
     amount INTEGER,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-
-  CREATE TABLE IF NOT EXISTS keys (
-    id TEXT PRIMARY KEY,
-    key INTEGER NOT NULL
-  );
 `);
 
-// Seed data (same as before)
-const starterUsers = [
-  { id: "u1", count: 10 },
-  { id: "u2", count: 25 },
-  { id: "u3", count: 42 },
-];
+// Prepopulate admin
+const adminExists = db.prepare("SELECT * FROM users WHERE id='admin'").get();
+if (!adminExists) {
+  db.prepare("INSERT INTO users (id, password, isAdmin) VALUES (?,?,1)").run(
+    "admin",
+    "admin123"
+  );
+  console.log("✅ Admin account created: user 'admin' / password 'admin123'");
+}
 
-const starterKeys = [
-  { id: "u1", key: 111 },
-  { id: "u2", key: 112 },
-  { id: "u3", key: 113 },
-];
-
-const insertUser = db.prepare(
-  `INSERT OR IGNORE INTO users (id, count) VALUES (?, ?)`
-);
-
-const deleteUser = db.prepare(`DELETE FROM users WHERE id = ?`);
-const deleteKey = db.prepare(`DELETE FROM keys WHERE id = ?`);
-const insertKey = db.prepare(
-  `INSERT OR IGNORE INTO keys (id, key) VALUES (?, ?)`
-);
-
-starterUsers.forEach((user) => insertUser.run(user.id, user.count));
-starterKeys.forEach((key) => insertKey.run(key.id, key.key));
-
-// Middleware to check session
+// Middleware to require login
 function requireLogin(req, res, next) {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: "Not logged in." });
-  }
+  if (!req.session.userId) return res.status(401).json({ error: "Not logged in." });
   next();
 }
 
-// Login endpoint - set session if key matches
-app.get("/api/login", (req, res) => {
-  const userInputId = req.query.user;
-  const userInputKey = req.query.key;
+// Middleware to require admin
+function requireAdmin(req, res, next) {
+  if (!req.session.userId) return res.status(401).json({ error: "Not logged in." });
+  const user = db.prepare("SELECT * FROM users WHERE id=?").get(req.session.userId);
+  if (!user || user.isAdmin !== 1) return res.status(403).json({ error: "Admin only." });
+  next();
+}
 
-  if (!userInputId || !userInputKey) {
-    return res.status(400).json({ error: "User ID and key are required." });
-  }
+// LOGIN
+app.post("/api/login", (req, res) => {
+  const { id, password } = req.body;
+  if (!id || !password) return res.status(400).json({ error: "ID and password required" });
 
-  try {
-    const storedKeyRow = db.prepare("SELECT key FROM keys WHERE id = ?").get(userInputId);
-    if (!storedKeyRow || Number(storedKeyRow.key) !== Number(userInputKey)) {
-      return res.status(401).json({ error: "Invalid key." });
-    }
+  const user = db.prepare("SELECT * FROM users WHERE id=?").get(id);
+  if (!user || user.password !== password)
+    return res.status(401).json({ error: "Invalid credentials" });
 
-    const userRow = db.prepare("SELECT * FROM users WHERE id = ?").get(userInputId);
-    if (!userRow) {
-      return res.status(404).json({ error: "User not found." });
-    }
-
-    // Save session
-    req.session.userId = userInputId;
-
-    const transactions = db
-      .prepare("SELECT * FROM transactions WHERE sender_id = ? OR receiver_id = ? ORDER BY timestamp DESC")
-      .all(userInputId, userInputId);
-
-    res.json({
-      user: userRow,
-      transactions,
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ error: "Internal server error." });
-  }
+  req.session.userId = user.id;
+  res.json({ success: true, isAdmin: user.isAdmin === 1 });
 });
 
-// Logout endpoint - clear session
+// LOGOUT
 app.get("/api/logout", (req, res) => {
   req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ error: "Logout failed." });
-    }
-    res.json({ success: true, message: "Logged out successfully." });
+    if (err) return res.status(500).json({ error: "Logout failed" });
+    res.json({ success: true });
   });
 });
 
-// Change transfer endpoint - require session and no longer key param
-app.get("/api/change", requireLogin, (req, res) => {
-  const senderId = req.session.userId;
-  const receiverId = req.query.rev;
-  const amountInt = parseInt(req.query.amount, 10);
-
-  if (!receiverId || isNaN(amountInt)) {
-    return res.status(400).json({
-      error: "Receiver ID and valid amount are required.",
-    });
-  }
-
-  if (senderId === receiverId) {
-    return res.status(400).json({ error: "Cannot transfer to yourself." });
-  }
-
-  const sender = db.prepare("SELECT count FROM users WHERE id = ?").get(senderId);
-  const receiver = db.prepare("SELECT count FROM users WHERE id = ?").get(receiverId);
-
-  if (!sender) return res.status(404).json({ error: "Sender not found." });
-  if (!receiver) return res.status(404).json({ error: "Receiver not found." });
-
-  if (sender.count < amountInt) {
-    return res.status(400).json({ error: "Insufficient balance." });
-  }
-
-  try {
-    const performTransfer = db.transaction(() => {
-      db.prepare("UPDATE users SET count = ? WHERE id = ?").run(
-        sender.count - amountInt,
-        senderId
-      );
-      db.prepare("UPDATE users SET count = ? WHERE id = ?").run(
-        receiver.count + amountInt,
-        receiverId
-      );
-
-      const result = db
-        .prepare(
-          `INSERT INTO transactions (sender_id, receiver_id, amount) VALUES (?, ?, ?)`
-        )
-        .run(senderId, receiverId, amountInt);
-
-      return result.lastInsertRowid;
-    });
-
-    const transactionId = performTransfer();
-
-    res.json({
-      transactionId,
-      senderId,
-      receiverId,
-      senderNewCount: sender.count - amountInt,
-      receiverNewCount: receiver.count + amountInt,
-    });
-  } catch (err) {
-    console.error("Transaction error:", err);
-    res.status(500).json({ error: "Transaction failed. Please try again." });
-  }
+// USER INFO
+app.get("/api/me", requireLogin, (req, res) => {
+  const user = db.prepare("SELECT id, isAdmin FROM users WHERE id=?").get(req.session.userId);
+  res.json(user);
 });
 
-// Get user count - protected
-app.get("/api/count", requireLogin, (req, res) => {
-  const userId = req.session.userId;
-
-  const user = db.prepare(`SELECT count FROM users WHERE id = ?`).get(userId);
-  if (!user) return res.status(404).json({ error: "User not found." });
-
-  res.json({ user: userId, count: user.count });
+// GET ACCOUNTS (all if admin, own if user)
+app.get("/api/accounts", requireLogin, (req, res) => {
+  const user = db.prepare("SELECT * FROM users WHERE id=?").get(req.session.userId);
+  let accounts;
+  if (user.isAdmin === 1) {
+    accounts = db.prepare("SELECT * FROM accounts").all();
+  } else {
+    accounts = db.prepare("SELECT * FROM accounts WHERE owner_id=?").all(user.id);
+  }
+  res.json(accounts);
 });
 
-// Get all transactions - keep original API key check or protect as needed
-app.get("/api/transactions", (req, res) => {
-  const apiInputKey = req.query.apiKey;
+// CREATE USER (ADMIN ONLY)
+app.post("/api/users", requireAdmin, (req, res) => {
+  const { id, password } = req.body;
+  if (!id || !password) return res.status(400).json({ error: "ID and password required" });
 
-  if (Key !== apiInputKey) {
-    return res.status(400).json({ error: "Requires the valid API Key" });
+  const exists = db.prepare("SELECT * FROM users WHERE id=?").get(id);
+  if (exists) return res.status(400).json({ error: "User exists" });
+
+  db.prepare("INSERT INTO users (id, password, isAdmin) VALUES (?,?,0)").run(id, password);
+  res.json({ success: true });
+});
+
+// DELETE USER (ADMIN ONLY)
+app.delete("/api/users/:id", requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const user = db.prepare("SELECT * FROM users WHERE id=?").get(id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const accounts = db.prepare("SELECT * FROM accounts WHERE owner_id=?").all(id);
+  if (accounts.length > 0) return res.status(400).json({ error: "User has accounts" });
+
+  db.prepare("DELETE FROM users WHERE id=?").run(id);
+  res.json({ success: true });
+});
+
+// CREATE ACCOUNT (ADMIN ONLY)
+app.post("/api/accounts", requireAdmin, (req, res) => {
+  const { id, owner_id, balance } = req.body;
+  if (!id || !owner_id) return res.status(400).json({ error: "ID and owner required" });
+
+  const exists = db.prepare("SELECT * FROM accounts WHERE id=?").get(id);
+  if (exists) return res.status(400).json({ error: "Account exists" });
+
+  const user = db.prepare("SELECT * FROM users WHERE id=?").get(owner_id);
+  if (!user) return res.status(404).json({ error: "Owner not found" });
+
+  db.prepare("INSERT INTO accounts (id, owner_id, balance) VALUES (?,?,?)").run(
+    id,
+    owner_id,
+    balance || 0
+  );
+  res.json({ success: true });
+});
+
+// DELETE ACCOUNT (ADMIN ONLY)
+app.delete("/api/accounts/:id", requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const acc = db.prepare("SELECT * FROM accounts WHERE id=?").get(id);
+  if (!acc) return res.status(404).json({ error: "Account not found" });
+  if (acc.balance !== 0) return res.status(400).json({ error: "Account must have 0 balance" });
+
+  db.prepare("DELETE FROM accounts WHERE id=?").run(id);
+  res.json({ success: true });
+});
+
+// TRANSFER MONEY
+// TRANSFER MONEY
+app.post("/api/transfer", requireLogin, (req, res) => {
+  const { from, to, amount } = req.body;
+
+  if (!from || !to || !amount) return res.status(400).json({ error: "Missing data" });
+
+  // Fetch sender and receiver accounts
+  const sender = db.prepare("SELECT * FROM accounts WHERE id=?").get(from);
+  const receiver = db.prepare("SELECT * FROM accounts WHERE id=?").get(to);
+
+  if (!sender) return res.status(404).json({ error: "Sender account not found" });
+  if (!receiver) return res.status(404).json({ error: "Receiver account not found" });
+
+  // Ensure sender belongs to the logged-in user
+  if (sender.owner_id !== req.session.userId)
+    return res.status(403).json({ error: "Cannot transfer from this account" });
+
+  // Optional: prevent transferring to the same account
+  if (from === to) return res.status(400).json({ error: "Cannot transfer to the same account" });
+
+  if (sender.balance < amount) return res.status(400).json({ error: "Insufficient funds" });
+
+  const txn = db.transaction(() => {
+    db.prepare("UPDATE accounts SET balance=? WHERE id=?").run(sender.balance - amount, from);
+    db.prepare("UPDATE accounts SET balance=? WHERE id=?").run(receiver.balance + amount, to);
+    const t = db.prepare(
+      "INSERT INTO transactions (sender_account, receiver_account, amount) VALUES (?,?,?)"
+    ).run(from, to, amount);
+    return t.lastInsertRowid;
+  });
+
+  const txnId = txn();
+  res.json({ success: true, transactionId: txnId });
+});
+
+
+// GET TRANSACTIONS
+app.get("/api/transactions", requireLogin, (req, res) => {
+  const user = db.prepare("SELECT * FROM users WHERE id=?").get(req.session.userId);
+  let transactions;
+  if (user.isAdmin === 1) {
+    transactions = db.prepare("SELECT * FROM transactions ORDER BY timestamp DESC").all();
+  } else {
+    // Get transactions for user's accounts
+    const accounts = db.prepare("SELECT id FROM accounts WHERE owner_id=?").all(user.id);
+    const ids = accounts.map((a) => a.id);
+    if (ids.length === 0) return res.json([]);
+    transactions = db
+      .prepare(
+        `SELECT * FROM transactions WHERE sender_account IN (${ids.map(() => "?").join(",")}) 
+        OR receiver_account IN (${ids.map(() => "?").join(",")}) ORDER BY timestamp DESC`
+      )
+      .all(...ids, ...ids);
   }
-
-  const transactions = db
-    .prepare(`SELECT * FROM transactions ORDER BY timestamp DESC`)
-    .all();
   res.json(transactions);
 });
 
-// User add/del - keep original API key protection
-app.get("/api/add", (req, res) => {
-  const userInputId = req.query.user;
-  const userInputKey = req.query.key;
-  const apiInputKey = req.query.apiKey;
-
-  if (Key !== apiInputKey) {
-    return res.status(400).json({ error: "Requires the valid API Key" });
-  }
-  if (!userInputId || !userInputKey) {
-    return res.status(400).json({ error: "User ID and User Key are required." });
-  }
-
-  try {
-    const selectUser = db.prepare(`SELECT id FROM users WHERE id = ?`);
-    const existingUser = selectUser.get(userInputId);
-
-    if (existingUser) {
-      return res.json({ success: true, message: "User already exists." });
-    }
-
-    insertUser.run(userInputId, 0);
-    insertKey.run(userInputId, userInputKey);
-
-    res.json({ success: true, message: "User added." });
-  } catch (err) {
-    console.error("Database error:", err);
-    res.status(500).json({ error: "Internal server error." });
-  }
-});
-
-app.get("/api/del", (req, res) => {
-  const userInputId = req.query.user;
-  const apiInputKey = req.query.apiKey;
-
-  if (Key !== apiInputKey) {
-    return res.status(400).json({ error: "Requires the valid API Key" });
-  }
-
-  if (!userInputId) {
-    return res.status(400).json({ error: "User ID is required." });
-  }
-
-  try {
-    const selectUser = db.prepare(`SELECT id FROM users WHERE id = ?`);
-    const existingUser = selectUser.get(userInputId);
-
-    if (!existingUser) {
-      return res.json({ success: true, message: "User does not exist." });
-    }
-
-    const user = db
-      .prepare(`SELECT count FROM users WHERE id = ?`)
-      .get(userInputId);
-    if (user.count != 0) {
-      return res.status(400).json({ error: "User must have 0 balance to delete" });
-    }
-
-    deleteUser.run(userInputId);
-    deleteKey.run(userInputId);
-
-    res.json({ success: true, message: "User deleted." });
-  } catch (err) {
-    console.error("Database error:", err);
-    res.status(500).json({ error: "Internal server error." });
-  }
-});
-
 // Start server
-app.listen(port, () => {
-  console.log(`✅ Server running at http://localhost:${port}`);
-});
+app.listen(port, () => console.log(`✅ Server running at http://localhost:${port}`));
