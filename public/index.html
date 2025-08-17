@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Banking App</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 0; padding: 0;
+      margin: 0;
+      padding: 0;
       background: #f4f6f9;
       color: #333;
     }
+
     header {
       background: #0066cc;
       color: white;
@@ -18,35 +21,59 @@
       justify-content: space-between;
       align-items: center;
     }
-    h1 { margin: 0; font-size: 20px; }
-    nav button { margin-left: 10px; }
-    main { padding: 1rem; }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    nav button {
+      margin-left: 10px;
+    }
+
+    main {
+      padding: 1rem;
+    }
+
     section {
       margin-bottom: 2rem;
       background: white;
       padding: 1rem;
       border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     }
-    input, select, button {
+
+    input,
+    select,
+    button {
       margin: 5px;
       padding: 6px;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 0.5rem;
     }
-    table, th, td {
+
+    table,
+    th,
+    td {
       border: 1px solid #ddd;
     }
-    th, td {
+
+    th,
+    td {
       padding: 8px;
       text-align: left;
     }
-    .hidden { display: none; }
+
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
+
 <body>
   <header>
     <h1>Banking App</h1>
@@ -87,9 +114,9 @@
 
     <!-- ADMIN DASHBOARD -->
     <section id="admin-section" class="hidden">
-      <h2>Admin Panel</h2>
+      <h2>Controls</h2>
 
-      <h3>Users</h3>
+      <h3>Add a User</h3>
       <form id="createUserForm">
         <input type="text" id="newUserId" placeholder="User ID" required />
         <input type="password" id="newUserPass" placeholder="Password" required />
@@ -97,141 +124,144 @@
       </form>
       <div id="users"></div>
 
-      <h3>Accounts</h3>
+      <h3>Add a Account</h3>
       <form id="createAccountForm">
         <input type="text" id="newAccId" placeholder="Account ID" required />
         <input type="text" id="ownerId" placeholder="Owner User ID" required />
         <button type="submit">Create Account</button>
       </form>
+      <h3>All Accounts</h3>
       <div id="allAccounts"></div>
     </section>
   </main>
 
-<script>
-  const loginSection = document.getElementById("login-section");
-  const userSection = document.getElementById("user-section");
-  const adminSection = document.getElementById("admin-section");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const userInfo = document.getElementById("user-info");
+  <script>
+    const loginSection = document.getElementById("login-section");
+    const userSection = document.getElementById("user-section");
+    const adminSection = document.getElementById("admin-section");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const userInfo = document.getElementById("user-info");
 
-  async function api(url, opts={}) {
-    const res = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      ...opts
-    });
-    return res.json();
-  }
+    async function api(url, opts = {}) {
+      const res = await fetch(url, {
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        ...opts
+      });
+      return res.json();
+    }
 
-  async function checkLogin() {
-    try {
-      const me = await api("/api/me");
-      if (me.id) {
-        loginSection.classList.add("hidden");
-        logoutBtn.classList.remove("hidden");
-        userInfo.textContent = `Logged in as ${me.id} ${me.isAdmin ? "(Admin)" : ""}`;
-        userSection.classList.remove("hidden");
-        loadUserAccounts();
-        loadTransactions();
-        if (me.isAdmin) {
-          adminSection.classList.remove("hidden");
-          loadUsers();
-          loadAllAccounts();
+    async function checkLogin() {
+      try {
+        const me = await api("/api/me");
+        if (me.id) {
+          loginSection.classList.add("hidden");
+          logoutBtn.classList.remove("hidden");
+          userInfo.textContent = `Logged in as ${me.id} ${me.isAdmin ? "(Admin)" : ""}`;
+          userSection.classList.remove("hidden");
+          loadUserAccounts();
+          loadTransactions();
+          if (me.isAdmin) {
+            adminSection.classList.remove("hidden");
+            userSection.classList.add("hidden");
+            loadUsers();
+            loadAllAccounts();
+          }
         }
-      }
-    } catch {}
-  }
+      } catch { }
+    }
 
-  document.getElementById("loginForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    const id = document.getElementById("loginId").value;
-    const password = document.getElementById("loginPassword").value;
-    const res = await api("/api/login", {
-      method: "POST",
-      body: JSON.stringify({ id, password })
+    document.getElementById("loginForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const id = document.getElementById("loginId").value;
+      const password = document.getElementById("loginPassword").value;
+      const res = await api("/api/login", {
+        method: "POST",
+        body: JSON.stringify({ id, password })
+      });
+      if (res.success) location.reload();
+      else document.getElementById("loginError").textContent = res.error;
     });
-    if (res.success) location.reload();
-    else document.getElementById("loginError").textContent = res.error;
-  });
 
-  logoutBtn.addEventListener("click", async () => {
-    await api("/api/logout");
-    location.reload();
-  });
-
-  async function loadUserAccounts() {
-    const accs = await api("/api/accounts");
-    const div = document.getElementById("accounts");
-    div.innerHTML = "<table><tr><th>ID</th><th>Balance</th></tr>" +
-      accs.map(a => `<tr><td>${a.id}</td><td>${a.balance}</td></tr>`).join("") +
-      "</table>";
-  }
-
-  async function loadTransactions() {
-    const tx = await api("/api/transactions");
-    const div = document.getElementById("transactions");
-    div.innerHTML = "<table><tr><th>ID</th><th>Sender</th><th>Receiver</th><th>Amount</th><th>Time</th></tr>" +
-      tx.map(t => `<tr><td>${t.id}</td><td>${t.sender_account||""}</td><td>${t.receiver_account||""}</td><td>${t.amount}</td><td>${t.timestamp}</td></tr>`).join("") +
-      "</table>";
-  }
-
-  document.getElementById("transferForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    const from = document.getElementById("fromAcc").value;
-    const to = document.getElementById("toAcc").value;
-    const amount = parseInt(document.getElementById("amount").value);
-    const res = await api("/api/transfer", {
-      method: "POST",
-      body: JSON.stringify({ from, to, amount })
+    logoutBtn.addEventListener("click", async () => {
+      await api("/api/logout");
+      location.reload();
     });
-    document.getElementById("transferMsg").textContent = res.success ? "Transfer complete!" : res.error;
-    loadUserAccounts();
-    loadTransactions();
-  });
 
-  // --- Admin panel ---
-  async function loadUsers() {
-    // Admin sees all accounts and can infer users from accounts list
-    const accs = await api("/api/accounts");
-    const owners = [...new Set(accs.map(a => a.owner_id))];
-    const div = document.getElementById("users");
-    div.innerHTML = "<p>Known users: " + owners.join(", ") + "</p>";
-  }
+    async function loadUserAccounts() {
+      const accs = await api("/api/accounts");
+      const div = document.getElementById("accounts");
+      div.innerHTML = "<table><tr><th>ID</th><th>Balance</th></tr>" +
+        accs.map(a => `<tr><td>${a.id}</td><td>${a.balance}</td></tr>`).join("") +
+        "</table>";
+    }
 
-  document.getElementById("createUserForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    const id = document.getElementById("newUserId").value;
-    const password = document.getElementById("newUserPass").value;
-    const res = await api("/api/users", {
-      method: "POST",
-      body: JSON.stringify({ id, password })
+    async function loadTransactions() {
+      const tx = await api("/api/transactions");
+      const div = document.getElementById("transactions");
+      div.innerHTML = "<table><tr><th>ID</th><th>Sender</th><th>Receiver</th><th>Amount</th><th>Time</th></tr>" +
+        tx.map(t => `<tr><td>${t.id}</td><td>${t.sender_account || ""}</td><td>${t.receiver_account || ""}</td><td>${t.amount}</td><td>${t.timestamp}</td></tr>`).join("") +
+        "</table>";
+    }
+
+    document.getElementById("transferForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const from = document.getElementById("fromAcc").value;
+      const to = document.getElementById("toAcc").value;
+      const amount = parseInt(document.getElementById("amount").value);
+      const res = await api("/api/transfer", {
+        method: "POST",
+        body: JSON.stringify({ from, to, amount })
+      });
+      document.getElementById("transferMsg").textContent = res.success ? "Transfer complete!" : res.error;
+      loadUserAccounts();
+      loadTransactions();
     });
-    alert(res.success ? "User created" : res.error);
-    loadUsers();
-  });
 
-  async function loadAllAccounts() {
-    const accs = await api("/api/accounts");
-    const div = document.getElementById("allAccounts");
-    div.innerHTML = "<table><tr><th>ID</th><th>Owner</th><th>Balance</th></tr>" +
-      accs.map(a => `<tr><td>${a.id}</td><td>${a.owner_id}</td><td>${a.balance}</td></tr>`).join("") +
-      "</table>";
-  }
+    // --- Admin panel ---
+    async function loadUsers() {
+      // Admin sees all accounts and can infer users from accounts list
+      const accs = await api("/api/accounts");
+      const owners = [...new Set(accs.map(a => a.owner_id))];
+      const div = document.getElementById("users");
+      div.innerHTML = "<p>Known users: " + owners.join(", ") + "</p>";
+    }
 
-  document.getElementById("createAccountForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    const id = document.getElementById("newAccId").value;
-    const owner_id = document.getElementById("ownerId").value;
-    const res = await api("/api/accounts", {
-      method: "POST",
-      body: JSON.stringify({ id, owner_id })
+    document.getElementById("createUserForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const id = document.getElementById("newUserId").value;
+      const password = document.getElementById("newUserPass").value;
+      const res = await api("/api/users", {
+        method: "POST",
+        body: JSON.stringify({ id, password })
+      });
+      alert(res.success ? "User created" : res.error);
+      loadUsers();
     });
-    alert(res.success ? "Account created" : res.error);
-    loadAllAccounts();
-  });
 
-  // Auto-check login on load
-  checkLogin();
-</script>
+    async function loadAllAccounts() {
+      const accs = await api("/api/accounts");
+      const div = document.getElementById("allAccounts");
+      div.innerHTML = "<table><tr><th>ID</th><th>Owner</th><th>Balance</th></tr>" +
+        accs.map(a => `<tr><td>${a.id}</td><td>${a.owner_id}</td><td>${a.balance}</td></tr>`).join("") +
+        "</table>";
+    }
+
+    document.getElementById("createAccountForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const id = document.getElementById("newAccId").value;
+      const owner_id = document.getElementById("ownerId").value;
+      const res = await api("/api/accounts", {
+        method: "POST",
+        body: JSON.stringify({ id, owner_id })
+      });
+      alert(res.success ? "Account created" : res.error);
+      loadAllAccounts();
+    });
+
+    // Auto-check login on load
+    checkLogin();
+  </script>
 </body>
+
 </html>
