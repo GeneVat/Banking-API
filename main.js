@@ -1,6 +1,8 @@
 const express = require("express");
 const session = require("express-session");
 const Database = require("better-sqlite3");
+const bcrypt = require("bcrypt");
+
 const app = express();
 const port = 4000;
 
@@ -14,7 +16,7 @@ app.use(
     secret: "replace_this_with_a_strong_secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 60 * 60 * 1000 },
+    cookie: { maxAge: 60 * 60 * 1000 }, // 1 hour
   })
 );
 
@@ -46,14 +48,17 @@ db.exec(`
 `);
 
 // Prepopulate admin
-const adminExists = db.prepare("SELECT * FROM users WHERE id='admin'").get();
-if (!adminExists) {
-  db.prepare("INSERT INTO users (id, password, isAdmin) VALUES (?,?,1)").run(
-    "admin",
-    "admin123"
-  );
-  console.log("✅ Admin account created: user 'admin' / password 'admin123'");
-}
+(async () => {
+  const adminExists = db.prepare("SELECT * FROM users WHERE id='admin'").get();
+  if (!adminExists) {
+    const hashedPassword = await bcrypt.hash("admin123", 10);
+    db.prepare("INSERT INTO users (id, password, isAdmin) VALUES (?,?,1)").run(
+      "admin",
+      hashedPassword
+    );
+    console.log("✅ Admin account created: user 'admin' / password 'admin123'");
+  }
+})();
 
 // Middleware to require login
 function requireLogin(req, res, next) {
@@ -70,13 +75,15 @@ function requireAdmin(req, res, next) {
 }
 
 // LOGIN
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { id, password } = req.body;
   if (!id || !password) return res.status(400).json({ error: "ID and password required" });
 
   const user = db.prepare("SELECT * FROM users WHERE id=?").get(id);
-  if (!user || user.password !== password)
-    return res.status(401).json({ error: "Invalid credentials" });
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) return res.status(401).json({ error: "Invalid credentials" });
 
   req.session.userId = user.id;
   res.json({ success: true, isAdmin: user.isAdmin === 1 });
@@ -109,14 +116,16 @@ app.get("/api/accounts", requireLogin, (req, res) => {
 });
 
 // CREATE USER (ADMIN ONLY)
-app.post("/api/users", requireAdmin, (req, res) => {
+app.post("/api/users", requireAdmin, async (req, res) => {
   const { id, password } = req.body;
   if (!id || !password) return res.status(400).json({ error: "ID and password required" });
 
   const exists = db.prepare("SELECT * FROM users WHERE id=?").get(id);
   if (exists) return res.status(400).json({ error: "User exists" });
 
-  db.prepare("INSERT INTO users (id, password, isAdmin) VALUES (?,?,0)").run(id, password);
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  db.prepare("INSERT INTO users (id, password, isAdmin) VALUES (?,?,0)").run(id, hashedPassword);
   res.json({ success: true });
 });
 
@@ -164,28 +173,24 @@ app.delete("/api/accounts/:id", requireAdmin, (req, res) => {
 });
 
 // TRANSFER MONEY
-// TRANSFER MONEY
 app.post("/api/transfer", requireLogin, (req, res) => {
   const { from, to, amount } = req.body;
 
   if (!from || !to || !amount) return res.status(400).json({ error: "Missing data" });
 
-  // Fetch sender and receiver accounts
   const sender = db.prepare("SELECT * FROM accounts WHERE id=?").get(from);
   const receiver = db.prepare("SELECT * FROM accounts WHERE id=?").get(to);
 
   if (!sender) return res.status(404).json({ error: "Sender account not found" });
   if (!receiver) return res.status(404).json({ error: "Receiver account not found" });
 
-if (!Number.isInteger(amount) || amount <= 0) {
-  return res.status(400).json({ error: "Amount must be a positive integer" });
-}
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return res.status(400).json({ error: "Amount must be a positive integer" });
+  }
 
-  // Ensure sender belongs to the logged-in user
   if (sender.owner_id !== req.session.userId)
     return res.status(403).json({ error: "Cannot transfer from this account" });
 
-  // Optional: prevent transferring to the same account
   if (from === to) return res.status(400).json({ error: "Cannot transfer to the same account" });
 
   if (sender.balance < amount) return res.status(400).json({ error: "Insufficient funds" });
@@ -203,7 +208,6 @@ if (!Number.isInteger(amount) || amount <= 0) {
   res.json({ success: true, transactionId: txnId });
 });
 
-
 // GET TRANSACTIONS
 app.get("/api/transactions", requireLogin, (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id=?").get(req.session.userId);
@@ -211,7 +215,6 @@ app.get("/api/transactions", requireLogin, (req, res) => {
   if (user.isAdmin === 1) {
     transactions = db.prepare("SELECT * FROM transactions ORDER BY timestamp DESC").all();
   } else {
-    // Get transactions for user's accounts
     const accounts = db.prepare("SELECT id FROM accounts WHERE owner_id=?").all(user.id);
     const ids = accounts.map((a) => a.id);
     if (ids.length === 0) return res.json([]);
