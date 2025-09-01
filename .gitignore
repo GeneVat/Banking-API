@@ -36,3 +36,9 @@ coverage/
 
 # Optional: Ignore OS metadata files from zip/tar archives
 __MACOSX/
+
+
+
+
+
+/bank.db

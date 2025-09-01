@@ -13,10 +13,10 @@ app.use(express.urlencoded({ extended: true }));
 // Setup sessions
 app.use(
   session({
-    secret: "replace_this_with_a_strong_secret",
+    secret: "shhhhhh",
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 60 * 60 * 1000 }, // 1 hour
+    cookie: { maxAge: 60 * 60 * 1000 }, // 1 hour Maybe?
   })
 );
 
@@ -47,7 +47,7 @@ db.exec(`
   );
 `);
 
-// Prepopulate admin
+// Create admin
 (async () => {
   const adminExists = db.prepare("SELECT * FROM users WHERE id='admin'").get();
   if (!adminExists) {
@@ -56,7 +56,7 @@ db.exec(`
       "admin",
       hashedPassword
     );
-    console.log("✅ Admin account created: user 'admin' / password 'admin123'");
+    console.log("Admin account created: user 'admin' / password 'admin123'");
   }
 })();
 
