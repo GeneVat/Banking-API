@@ -11,8 +11,7 @@ Banking API is a tool to keep track of money for small internal purposes. Admin 
 ## Notes
 - Please Star or support in any way
 - Report Bugs please
-- I am trying to decompile the main.js as it is very large 
-
+- This is a beta 
 
 
 
